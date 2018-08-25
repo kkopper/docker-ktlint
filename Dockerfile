@@ -1,4 +1,4 @@
-FROM ubuntu:latest
+FROM openjdk:jre-slim
 
 RUN apt-get -qq update --yes \
  && apt-get -qq install --yes --no-install-recommends \
