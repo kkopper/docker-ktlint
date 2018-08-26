@@ -1,6 +1,6 @@
 # docker-ktlint
 
-A Docker image based on [`ubuntu:latest`](https://hub.docker.com/_/ubuntu/) with [ktlint](https://ktlint.github.io) installed.
+A Docker image based on [`openjdk:jre-slim`](https://hub.docker.com/_/openjdk/) with [ktlint](https://ktlint.github.io) installed.
 
 The resulting Docker image is automatically deployed to both [Docker Hub](https://hub.docker.com/r/kkopper/ktlint/) and this projects [container registry](https://gitlab.com/kkopper/ktlint/container_registry).
 
