@@ -7,7 +7,7 @@ RUN apt-get -qq update --yes \
  && rm -rf /var/lib/apt/lists/*
 
 # Download ktlint
-ARG ktlint_version=0.31.0
-RUN curl -sSLO https://github.com/shyiko/ktlint/releases/download/${ktlint_version}/ktlint \
+ARG ktlint_version=0.32.0
+RUN curl -sSLO https://github.com/pinterest/ktlint/releases/download/${ktlint_version}/ktlint \
  && chmod a+x ktlint \
  && mv ktlint /usr/local/bin
