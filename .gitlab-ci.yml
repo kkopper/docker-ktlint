@@ -1,6 +1,7 @@
 stages:
   - lint
   - build
+  - test
   - check
   - deploy
 
@@ -57,6 +58,17 @@ build:
   script:
     - docker build --pull -t "$DOCKER_IMAGE" .
     - docker push "$DOCKER_IMAGE"
+
+call version:
+  stage: test
+  only:
+    changes:
+      - Dockerfile
+  before_script:
+    - *registry_login
+    - docker pull "$DOCKER_IMAGE"
+  script:
+    - docker run --rm "$DOCKER_IMAGE" ktlint --version
 
 container_scanning:
   stage: check
