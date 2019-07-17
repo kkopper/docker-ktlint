@@ -10,6 +10,9 @@ image: docker:latest
 services:
   - docker:dind
 
+include:
+  template: Container-Scanning.gitlab-ci.yml
+
 variables:
   DOCKER_DRIVER: overlay2
   DOCKER_HOST: tcp://docker:2375
@@ -69,50 +72,44 @@ call version:
     - docker pull "$DOCKER_IMAGE"
   script:
     - docker run --rm "$DOCKER_IMAGE" ktlint --version
+  variables:
+    GIT_STRATEGY: none
 
 container_scanning:
   stage: check
-  allow_failure: true
+  variables:
+    CI_APPLICATION_REPOSITORY: $CI_REGISTRY_IMAGE/commit
+  before_script:
+    - *registry_login
+    - export CI_REGISTRY_USER=""  # Prevent template from logging in again.
   only:
     changes:
       - Dockerfile
   except:
     refs:
       - tags
-  before_script:
-    - *registry_login
-    - docker pull "$DOCKER_IMAGE"
-  script:
-    - docker run -d --name db arminc/clair-db:latest
-    - docker run -p 6060:6060 --link db:postgres -d --name clair --restart on-failure arminc/clair-local-scan:v2.0.1
-    - apk add -q -U wget ca-certificates
-    - wget -q -O clair-scanner https://github.com/arminc/clair-scanner/releases/download/v8/clair-scanner_linux_amd64
-    - chmod +x clair-scanner
-    - while( ! wget -q -O /dev/null http://docker:6060/v1/namespaces ) ; do sleep 1 ; done
-    - ( retries=0 ; while( ! wget -T 10 -q -O /dev/null http://docker:6060/v1/namespaces ) ; do sleep 1 ; if [ $retries -eq 10 ] ; then echo "Timeout when connecting to claire daemon." >&2 ; exit 1 ; fi ; retries=$(($retries+1)) ; done )
-    - ./clair-scanner -c http://docker:6060 --ip $(hostname -i) -r gl-container-scanning-report.json -l clair.log ${DOCKER_IMAGE} || true
-  artifacts:
-    reports:
-      container_scanning: gl-container-scanning-report.json
 
-.deploy: &deploy
+.deploy:
   stage: deploy
   dependencies:
     - build
+  only:
+    changes:
+      - Dockerfile
+  variables:
+    GIT_STRATEGY: none
 
-.registry: &registry
-  <<: *deploy
+.registry:
+  extends: .deploy
   before_script:
     - *registry_login
     - docker pull "$DOCKER_IMAGE"
 
 registry-latest:
-  <<: *registry
+  extends: .registry
   only:
     refs:
       - master
-    changes:
-      - Dockerfile
   environment:
     name: GitLab Registry
     url: $CI_PROJECT_URL/container_registry
@@ -121,18 +118,16 @@ registry-latest:
     - docker push "$CI_REGISTRY_IMAGE:latest"
 
 registry-tag:
-  <<: *registry
+  extends: .registry
   only:
     refs:
       - tags
-    changes:
-      - Dockerfile
   script:
     - docker tag "$DOCKER_IMAGE" "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
     - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
 
-.hub: &hub
-  <<: *deploy
+.hub:
+  extends: .deploy
   before_script:
     - *registry_login
     - echo "$HUB_PASSWORD" | docker login -u "$GITLAB_USER_LOGIN" --password-stdin
@@ -142,12 +137,10 @@ registry-tag:
     - docker logout "$CI_REGISTRY"
 
 hub-latest:
-  <<: *hub
+  extends: .hub
   only:
     refs:
       - master
-    changes:
-      - Dockerfile
   environment:
     name: Docker Hub
     url: https://hub.docker.com/r/$DOCKER_IMAGE_HUB
@@ -156,12 +149,10 @@ hub-latest:
     - docker push "$DOCKER_IMAGE_HUB:latest"
 
 hub-tag:
-  <<: *hub
+  extends: .hub
   only:
     refs:
       - tags
-    changes:
-      - Dockerfile
   script:
     - docker tag "$DOCKER_IMAGE" "$DOCKER_IMAGE_HUB:$CI_COMMIT_TAG"
     - docker push "$DOCKER_IMAGE_HUB:$CI_COMMIT_TAG"
