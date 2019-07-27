@@ -22,11 +22,21 @@ variables:
 .registry_login: &registry_login
   echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
 
-before_script:
-  - *registry_login
+default:
+  before_script:
+    - *registry_login
+  after_script:
+    - docker logout "$CI_REGISTRY"
 
-after_script:
-  - docker logout "$CI_REGISTRY"
+.latest:
+  only:
+    refs:
+      - master
+
+.tag:
+  only:
+    refs:
+      - tags
 
 hadolint:
   stage: lint
@@ -62,7 +72,7 @@ build:
     - docker build --pull -t "$DOCKER_IMAGE" .
     - docker push "$DOCKER_IMAGE"
 
-call version:
+.test:
   stage: test
   only:
     changes:
@@ -70,10 +80,22 @@ call version:
   before_script:
     - *registry_login
     - docker pull "$DOCKER_IMAGE"
-  script:
-    - docker run --rm "$DOCKER_IMAGE" ktlint --version
   variables:
     GIT_STRATEGY: none
+
+call version:
+  extends: .test
+  script:
+    - docker run --rm "$DOCKER_IMAGE" ktlint --version
+
+compare version:
+  extends:
+    - .test
+    - .tag
+  script:
+    - >-
+        docker run --rm "$DOCKER_IMAGE" ktlint --version |
+        grep -F "$CI_COMMIT_TAG"
 
 container_scanning:
   stage: check
@@ -106,10 +128,9 @@ container_scanning:
     - docker pull "$DOCKER_IMAGE"
 
 registry-latest:
-  extends: .registry
-  only:
-    refs:
-      - master
+  extends:
+    - .registry
+    - .latest
   environment:
     name: GitLab Registry
     url: $CI_PROJECT_URL/container_registry
@@ -118,10 +139,9 @@ registry-latest:
     - docker push "$CI_REGISTRY_IMAGE:latest"
 
 registry-tag:
-  extends: .registry
-  only:
-    refs:
-      - tags
+  extends:
+    - .registry
+    - .tag
   script:
     - docker tag "$DOCKER_IMAGE" "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
     - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
@@ -137,10 +157,9 @@ registry-tag:
     - docker logout "$CI_REGISTRY"
 
 hub-latest:
-  extends: .hub
-  only:
-    refs:
-      - master
+  extends:
+    - .hub
+    - .latest
   environment:
     name: Docker Hub
     url: https://hub.docker.com/r/$DOCKER_IMAGE_HUB
@@ -149,10 +168,9 @@ hub-latest:
     - docker push "$DOCKER_IMAGE_HUB:latest"
 
 hub-tag:
-  extends: .hub
-  only:
-    refs:
-      - tags
+  extends:
+    - .hub
+    - .tag
   script:
     - docker tag "$DOCKER_IMAGE" "$DOCKER_IMAGE_HUB:$CI_COMMIT_TAG"
     - docker push "$DOCKER_IMAGE_HUB:$CI_COMMIT_TAG"
