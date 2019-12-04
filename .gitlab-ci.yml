@@ -5,10 +5,17 @@ stages:
   - check
   - deploy
 
-image: docker:latest
+.registry_login: &registry_login
+  echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
 
-services:
-  - docker:dind
+default:
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - *registry_login
+  after_script:
+    - docker logout "$CI_REGISTRY"
 
 include:
   template: Container-Scanning.gitlab-ci.yml
@@ -18,15 +25,6 @@ variables:
   DOCKER_HOST: tcp://docker:2375
   DOCKER_IMAGE: $CI_REGISTRY_IMAGE/commit:$CI_COMMIT_SHA
   DOCKER_IMAGE_HUB: kkopper/ktlint
-
-.registry_login: &registry_login
-  echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
-
-default:
-  before_script:
-    - *registry_login
-  after_script:
-    - docker logout "$CI_REGISTRY"
 
 .latest:
   only:
@@ -84,7 +82,9 @@ build:
     GIT_STRATEGY: none
 
 call version:
-  extends: .test
+  extends:
+    - .test
+    - .latest
   script:
     - docker run --rm "$DOCKER_IMAGE" ktlint --version
 
