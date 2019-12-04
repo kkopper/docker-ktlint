@@ -1,4 +1,4 @@
-FROM openjdk:jre-slim
+FROM openjdk:11-jre-slim
 
 RUN apt-get -qq update --yes \
  && apt-get -qq install --yes --no-install-recommends \
@@ -7,7 +7,7 @@ RUN apt-get -qq update --yes \
  && rm -rf /var/lib/apt/lists/*
 
 # Download ktlint
-ARG ktlint_version=0.35.0
+ARG ktlint_version=0.36.0
 RUN curl -sSLO https://github.com/pinterest/ktlint/releases/download/${ktlint_version}/ktlint \
  && chmod a+x ktlint \
  && mv ktlint /usr/local/bin
