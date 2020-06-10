@@ -27,33 +27,35 @@ variables:
   DOCKER_IMAGE_HUB: kkopper/ktlint
 
 .latest:
-  only:
-    refs:
-      - master
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+      changes:
+        - Dockerfile
 
 .tag:
-  only:
-    refs:
-      - tags
+  rules:
+    - if: $CI_COMMIT_TAG
+      changes:
+        - Dockerfile
 
 hadolint:
   stage: lint
   image: hadolint/hadolint:latest-debian
-  only:
-    changes:
-      - Dockerfile
-      - .hadolint.yaml
-  services: []
-  before_script: []
+  inherit:
+    default: false
+    variables: false
+  rules:
+    - changes:
+       - Dockerfile
+       - .hadolint.yaml
   script:
     - hadolint Dockerfile
-  after_script: []
 
 build:
   stage: build
-  only:
-    changes:
-      - Dockerfile
+  rules:
+    - changes:
+       - Dockerfile
   before_script:
     - token=$( wget -q -O - "https://gitlab.com/jwt/auth?service=container_registry&scope=repository:${CI_PROJECT_PATH}/commit:pull" | sed -e 's/^{"token":"\(.*\)"}$/\1/g' )
     - >-
@@ -72,9 +74,6 @@ build:
 
 .test:
   stage: test
-  only:
-    changes:
-      - Dockerfile
   before_script:
     - *registry_login
     - docker pull "$DOCKER_IMAGE"
@@ -99,25 +98,24 @@ compare version:
 
 container_scanning:
   stage: check
+  inherit:
+    default: false
   variables:
     CI_APPLICATION_REPOSITORY: $CI_REGISTRY_IMAGE/commit
-  before_script:
-    - *registry_login
-    - export CI_REGISTRY_USER=""  # Prevent template from logging in again.
-  only:
-    changes:
-      - Dockerfile
-  except:
-    refs:
-      - tags
+  rules:
+    - if: $CONTAINER_SCANNING_DISABLED
+      when: never
+    - if: $CI_COMMIT_BRANCH &&
+          $GITLAB_FEATURES =~ /\bcontainer_scanning\b/
+      changes:
+        - Dockerfile
+    - if: $CI_COMMIT_TAG
+      when: never
 
 .deploy:
   stage: deploy
   dependencies:
     - build
-  only:
-    changes:
-      - Dockerfile
   variables:
     GIT_STRATEGY: none
 
